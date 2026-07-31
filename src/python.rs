@@ -45,12 +45,31 @@ fn to_dict<'py>(py: Python<'py>, l: &ManifestLink) -> PyResult<Bound<'py, PyDict
 
 /// Build a `Link` header value advertising `uri` as the C2PA Manifest Store.
 ///
-/// Raises `ValueError` for a target containing a line break, control character,
-/// or angle bracket — any of which would let a caller inject arbitrary response
-/// headers or redirect a validator to a different URI.
+/// The target is percent-encoded, so any input yields a safe header: a CR/LF
+/// becomes `%0D%0A` and can no longer start a header of its own. Only an empty
+/// target raises.
 #[pyfunction]
 fn format(uri: &str) -> PyResult<String> {
     link::format(uri).map_err(map_err)
+}
+
+/// As `format`, but raises rather than repairing a target that is not already a
+/// valid URI reference.
+///
+/// Use this when the target comes from configuration, where a silent `%20`
+/// would hide a typo until it surfaced as a 404.
+#[pyfunction]
+fn format_strict(uri: &str) -> PyResult<String> {
+    link::format_strict(uri).map_err(map_err)
+}
+
+/// Percent-encode the bytes that cannot appear literally in a URI reference.
+///
+/// Idempotent: `%` is left alone, so an already-encoded URI is not
+/// double-encoded.
+#[pyfunction]
+fn encode_target(uri: &str) -> String {
+    link::encode_target(uri)
 }
 
 /// The single `c2pa-manifest` link across the given `Link` header values, or
@@ -85,6 +104,8 @@ fn locate_all<'py>(py: Python<'py>, values: Vec<String>) -> PyResult<Vec<Bound<'
 #[pymodule]
 fn c2pa_tower(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(format, m)?)?;
+    m.add_function(wrap_pyfunction!(format_strict, m)?)?;
+    m.add_function(wrap_pyfunction!(encode_target, m)?)?;
     m.add_function(wrap_pyfunction!(extract, m)?)?;
     m.add_function(wrap_pyfunction!(locate_all, m)?)?;
     m.add("REL", crate::link::REL)?;

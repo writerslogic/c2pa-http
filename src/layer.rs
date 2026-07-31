@@ -35,7 +35,10 @@ pub const LINK: http::header::HeaderName = http::header::LINK;
 
 /// Append a `c2pa-manifest` link to a header map.
 ///
-/// Appends rather than replaces, so existing `Link` fields survive.
+/// Appends rather than replaces, so existing `Link` fields survive. The target
+/// is percent-encoded by [`link::encode_target`], so a hostile URI is rendered
+/// inert rather than rejected — a CR/LF ends up inside the URI as `%0D%0A`
+/// instead of starting a header of its own.
 pub fn append_to(headers: &mut HeaderMap, uri: &str) -> Result<(), Error> {
     let value = link::format(uri)?;
     let header = HeaderValue::from_str(&value)
@@ -64,10 +67,23 @@ pub struct ManifestLinkLayer {
 impl ManifestLinkLayer {
     /// Build a layer advertising `uri`.
     ///
-    /// The header value is rendered and validated once, here, so a bad target
-    /// is a construction-time error rather than a per-response surprise.
+    /// The header value is rendered once, here, rather than per response. The
+    /// target is percent-encoded, so any input produces a safe header.
     pub fn new(uri: &str) -> Result<Self, Error> {
-        let value = link::format(uri)?;
+        Self::from_value(link::format(uri)?)
+    }
+
+    /// As [`new`](Self::new), but fails if `uri` is not already a valid URI
+    /// reference instead of repairing it.
+    ///
+    /// Prefer this when the target comes from configuration: a stray space in a
+    /// deployment variable becomes a startup error rather than a silent `%20`
+    /// and a 404 at validation time.
+    pub fn new_strict(uri: &str) -> Result<Self, Error> {
+        Self::from_value(link::format_strict(uri)?)
+    }
+
+    fn from_value(value: String) -> Result<Self, Error> {
         let header = HeaderValue::from_str(&value)
             .map_err(|_| Error::Malformed("target URI is not a valid header value"))?;
         Ok(Self { header })
@@ -198,10 +214,33 @@ mod tests {
     }
 
     #[test]
-    fn a_dangerous_target_is_rejected_at_construction() {
-        // Not at response time, when it would be far harder to trace.
-        assert!(ManifestLinkLayer::new("https://a.example/\r\nX-Evil: 1").is_err());
-        assert!(append_to(&mut HeaderMap::new(), "https://a.example/\nX: 1").is_err());
+    fn a_hostile_target_cannot_inject_a_header() {
+        // The CR/LF is percent-encoded, so the payload lands inside the URI
+        // rather than becoming a header of its own.
+        let mut headers = HeaderMap::new();
+        append_to(&mut headers, "https://a.example/\r\nX-Evil: 1").unwrap();
+        assert_eq!(headers.len(), 1, "a second header was injected");
+        assert!(headers.get("x-evil").is_none());
+        assert!(extract_from(&headers).unwrap().uri.contains("%0D%0A"));
+    }
+
+    #[tokio::test]
+    async fn a_hostile_target_stays_inert_through_the_layer() {
+        let svc = ServiceBuilder::new()
+            .layer(ManifestLinkLayer::new("https://a.example/\r\nX-Evil: 1").unwrap())
+            .service_fn(ok);
+        let response = svc.oneshot(http::Request::new(())).await.unwrap();
+        assert_eq!(response.headers().len(), 1);
+        assert!(response.headers().get("x-evil").is_none());
+    }
+
+    #[test]
+    fn strict_construction_rejects_what_lenient_repairs() {
+        // For a target from configuration, a stray space should be a startup
+        // error rather than a silent %20 and a 404 much later.
+        assert!(ManifestLinkLayer::new_strict("https://a.example/a b").is_err());
+        assert!(ManifestLinkLayer::new("https://a.example/a b").is_ok());
+        assert!(ManifestLinkLayer::new_strict("https://a.example/m.c2pa").is_ok());
     }
 
     #[test]

@@ -91,13 +91,34 @@ Competing targets are rejected rather than guessed at: the specification defines
 no precedence between two different `c2pa-manifest` links, so choosing one would
 be inventing a rule. Duplicate links naming the *same* target are fine.
 
-## Header injection is refused
+## Header injection is impossible, without rejecting anything
 
-`link::format` rejects a target containing a line break, control character, or
-angle bracket. The first would end the header and let the rest be attacker-
-chosen; the last would terminate the target early and change which URI a
-validator fetches. `ManifestLinkLayer::new` validates once at construction, so a
-bad target is a startup error rather than a per-response surprise.
+A raw CR, LF, space, or angle bracket cannot legally appear in a URI at all —
+[RFC 3986](https://www.rfc-editor.org/rfc/rfc3986) excludes them. So a string
+carrying one is not a URI to be rejected; it is a URI that has not been encoded
+yet. `link::format` percent-encodes it, which is both the spec-correct repair
+and what makes injection impossible:
+
+```rust
+use c2pa_tower::link;
+
+// A CR/LF payload lands inside the URI instead of starting a new header.
+let header = link::format("https://a.example/\r\nX-Injected: yes")?;
+assert!(header.contains("%0D%0A"));
+assert!(!header.contains('\n'));
+# Ok::<(), c2pa_tower::Error>(())
+```
+
+`>` becomes `%3E` and can no longer close the target early; non-ASCII travels as
+percent-encoded UTF-8. Encoding is **idempotent** — `%` is left untouched, so an
+already-encoded URI is not double-encoded into `%2520` — and every delimiter a
+URI needs (`? # / : @ & = +` and the sub-delims) is preserved, so query strings
+and fragments survive intact.
+
+When you would rather be *told* that your input needed repairing, use
+`link::format_strict` or `ManifestLinkLayer::new_strict`. For a target read from
+configuration that is usually the better choice: a stray space becomes a startup
+error instead of a silent `%20` and a 404 at validation time.
 
 ## Scope
 

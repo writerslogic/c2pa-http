@@ -104,24 +104,82 @@ pub fn extract<'a>(values: impl IntoIterator<Item = &'a str>) -> Result<Manifest
 
 /// Build a `Link` header value advertising `uri` as the C2PA Manifest Store.
 ///
-/// Rejects a target containing a carriage return, line feed, other control
-/// character, or `>`. The first two would split the header and let a caller
-/// inject arbitrary response headers; the third would terminate the target
-/// early and change which URI a validator fetches.
+/// The target is percent-encoded by [`encode_target`], so *any* input yields a
+/// well-formed, injection-free header. Only an empty target is an error: there
+/// is nothing to advertise.
+///
+/// Because encoding is applied, [`extract`] reads back the *encoded* form —
+/// `a b` goes out as `a%20b` and comes back as `a%20b`. That is the URI, and it
+/// is what a validator will fetch. Use [`format_strict`] when you would rather
+/// be told that your input needed repairing.
 pub fn format(uri: &str) -> Result<String, Error> {
     if uri.is_empty() {
         return Err(Error::Malformed("target URI is empty"));
     }
-    if uri.contains('\r') || uri.contains('\n') {
-        return Err(Error::Malformed("target URI contains a line break"));
+    Ok(std::format!("<{}>; rel=\"{REL}\"", encode_target(uri)))
+}
+
+/// As [`format`], but fails rather than repairing a target that is not already
+/// a valid URI reference.
+///
+/// Useful where the target comes from configuration and silently rewriting it
+/// would hide a mistake: a stray space in a deployment variable becomes `%20`
+/// and a 404 at validation time, rather than an error at startup.
+pub fn format_strict(uri: &str) -> Result<String, Error> {
+    if uri.is_empty() {
+        return Err(Error::Malformed("target URI is empty"));
     }
-    if uri.chars().any(|c| c.is_control()) {
-        return Err(Error::Malformed("target URI contains a control character"));
-    }
-    if uri.contains('>') || uri.contains('<') {
-        return Err(Error::Malformed("target URI contains an angle bracket"));
+    if uri.as_bytes().iter().copied().any(must_encode) {
+        return Err(Error::Malformed(
+            "target URI contains characters that a URI must percent-encode",
+        ));
     }
     Ok(std::format!("<{uri}>; rel=\"{REL}\""))
+}
+
+/// Whether a byte cannot appear literally in a URI reference.
+///
+/// {RFC 3986} excludes the control characters, space, and `" < > \ ^ ` { | }`
+/// from a URI. Bytes at or above `0x7F` are excluded too: a URI is ASCII, and
+/// non-ASCII text travels as percent-encoded UTF-8.
+///
+/// `%` is deliberately *not* in this set, so a URI that is already encoded is
+/// not encoded a second time.
+fn must_encode(b: u8) -> bool {
+    b <= 0x20
+        || b >= 0x7F
+        || matches!(
+            b,
+            b'"' | b'<' | b'>' | b'\\' | b'^' | b'`' | b'{' | b'|' | b'}'
+        )
+}
+
+/// Percent-encode the bytes that cannot appear literally in a URI reference.
+///
+/// A string carrying a raw CR, LF, space, or angle bracket is not a URI to be
+/// rejected — it is a URI that has not been encoded yet, and encoding it is
+/// what {RFC 3986} requires. That this also makes response-header injection
+/// impossible is a consequence rather than a separate mechanism: a CR becomes
+/// `%0D` and can no longer terminate the field, and a `>` becomes `%3E` and can
+/// no longer close the target early.
+///
+/// Already-encoded input passes through unchanged, because `%` is left alone.
+/// The delimiters a URI needs — `? # / : @ & = +` and the other sub-delims —
+/// are all legal and preserved, so a query string or fragment survives intact.
+pub fn encode_target(uri: &str) -> String {
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
+    let mut out = String::with_capacity(uri.len());
+    for &b in uri.as_bytes() {
+        if must_encode(b) {
+            out.push('%');
+            out.push(HEX[(b >> 4) as usize] as char);
+            out.push(HEX[(b & 0x0F) as usize] as char);
+        } else {
+            // Every byte reaching here is printable ASCII.
+            out.push(b as char);
+        }
+    }
+    out
 }
 
 /// Split on `sep`, ignoring separators inside `<...>` or a quoted string.
@@ -387,21 +445,91 @@ mod tests {
     }
 
     #[test]
-    fn format_refuses_header_injection() {
-        // A newline would end the header and let the rest be attacker-chosen.
-        for bad in [
+    fn format_neutralises_header_injection_rather_than_refusing() {
+        // Each of these would split the header or close the target early if it
+        // reached the wire raw. Encoding makes them inert while keeping them.
+        for hostile in [
             "https://a.example/\r\nX-Injected: yes",
             "https://a.example/\nX-Injected: yes",
             "https://a.example/\r",
             "https://a.example/m>; rel=\"evil\", <b",
             "https://a.example/\u{7}bell",
+            "https://a.example/a b",
         ] {
+            let header = format(hostile).expect("encoding must never reject");
             assert!(
-                matches!(format(bad), Err(Error::Malformed(_))),
-                "accepted a dangerous target: {bad:?}"
+                !header.contains('\r') && !header.contains('\n'),
+                "a line break survived: {header:?}"
             );
+            // Exactly one target, so nothing closed it early and started a
+            // second link-value.
+            assert_eq!(header.matches('<').count(), 1, "{header:?}");
+            assert_eq!(header.matches('>').count(), 1, "{header:?}");
+            // And it still parses back to exactly one link.
+            assert_eq!(locate_all([header.as_str()]).len(), 1, "{header:?}");
         }
         assert!(matches!(format(""), Err(Error::Malformed(_))));
+    }
+
+    #[test]
+    fn an_injected_header_name_becomes_part_of_the_uri() {
+        // The payload is preserved, not silently dropped — it is simply no
+        // longer a header of its own.
+        let header = format("https://a.example/\r\nX-Injected: yes").unwrap();
+        assert!(header.contains("%0D%0A"), "{header}");
+        let found = extract([header.as_str()]).unwrap();
+        assert_eq!(found.uri, "https://a.example/%0D%0AX-Injected:%20yes");
+    }
+
+    #[test]
+    fn encoding_covers_exactly_the_characters_a_uri_excludes() {
+        assert_eq!(encode_target("a b"), "a%20b");
+        assert_eq!(encode_target("a\r\nb"), "a%0D%0Ab");
+        assert_eq!(encode_target("a<b>c"), "a%3Cb%3Ec");
+        assert_eq!(
+            encode_target("a\"b\\c^d`e{f|g}h"),
+            "a%22b%5Cc%5Ed%60e%7Bf%7Cg%7Dh"
+        );
+        assert_eq!(encode_target("a\u{7F}b"), "a%7Fb");
+        // Non-ASCII travels as percent-encoded UTF-8.
+        assert_eq!(encode_target("café"), "caf%C3%A9");
+    }
+
+    #[test]
+    fn encoding_preserves_a_uri_that_is_already_correct() {
+        // Every delimiter a URI needs must survive untouched, or a query string
+        // or fragment would be corrupted.
+        for good in [
+            "https://a.example/m.c2pa",
+            "https://user@a.example:8443/p/q?x=1&y=2#frag",
+            "https://a.example/i.jpg#jumbf=c2pa",
+            "https://a.example/a~b_c-d.e!$&'()*+,;=:@/f",
+        ] {
+            assert_eq!(encode_target(good), good, "mangled a valid URI");
+        }
+    }
+
+    #[test]
+    fn encoding_is_idempotent() {
+        // `%` is left alone, so an already-encoded target is not double-encoded
+        // into `%2520`.
+        let once = encode_target("a b");
+        assert_eq!(encode_target(&once), once);
+        assert_eq!(encode_target("%20"), "%20");
+    }
+
+    #[test]
+    fn format_strict_reports_what_format_would_have_repaired() {
+        assert!(format_strict("https://a.example/m.c2pa").is_ok());
+        for needs_repair in ["https://a.example/a b", "https://a.example/\r\n", "café"] {
+            assert!(
+                matches!(format_strict(needs_repair), Err(Error::Malformed(_))),
+                "strict mode accepted {needs_repair:?}"
+            );
+            // What strict rejects, lenient repairs.
+            assert!(format(needs_repair).is_ok());
+        }
+        assert!(matches!(format_strict(""), Err(Error::Malformed(_))));
     }
 
     #[test]

@@ -40,11 +40,28 @@ fn to_js(l: &link::ManifestLink) -> JsValue {
 
 /// Build a `Link` header value advertising `uri` as the C2PA Manifest Store.
 ///
-/// Throws for a target containing a line break, control character, or angle
-/// bracket, any of which would allow response-header injection.
+/// The target is percent-encoded, so any input yields a safe header: a CR/LF
+/// becomes `%0D%0A` and can no longer start a header of its own. Only an empty
+/// target throws.
 #[wasm_bindgen]
 pub fn format(uri: &str) -> Result<String, JsError> {
     link::format(uri).map_err(|e| JsError::new(&e.to_string()))
+}
+
+/// As [`format`], but throws rather than repairing a target that is not already
+/// a valid URI reference.
+#[wasm_bindgen(js_name = formatStrict)]
+pub fn format_strict(uri: &str) -> Result<String, JsError> {
+    link::format_strict(uri).map_err(|e| JsError::new(&e.to_string()))
+}
+
+/// Percent-encode the bytes that cannot appear literally in a URI reference.
+///
+/// Idempotent: `%` is left alone, so an already-encoded URI is not
+/// double-encoded.
+#[wasm_bindgen(js_name = encodeTarget)]
+pub fn encode_target(uri: &str) -> String {
+    link::encode_target(uri)
 }
 
 /// The single `c2pa-manifest` link across the given `Link` header values, or
