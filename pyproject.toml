@@ -1,0 +1,25 @@
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "c2pa-tower"
+description = "C2PA manifest discovery over HTTP: the c2pa-manifest Link header (RFC 8288)"
+readme = "README.md"
+license = { text = "MIT OR Apache-2.0" }
+requires-python = ">=3.9"
+keywords = ["c2pa", "provenance", "http", "link-header", "rfc8288"]
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Security",
+]
+dynamic = ["version"]
+
+[project.urls]
+Repository = "https://github.com/writerslogic/c2pa-tower"
+
+[tool.maturin]
+features = ["python"]
+module-name = "c2pa_tower"

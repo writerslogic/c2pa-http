@@ -1,0 +1,48 @@
+[package]
+name = "c2pa-tower"
+version = "0.1.0"
+edition = "2021"
+# `usize::is_multiple_of`, used by the link parser.
+rust-version = "1.87"
+description = "C2PA manifest discovery over HTTP: the `c2pa-manifest` Link header (RFC 8288), with a Tower middleware"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/writerslogic/c2pa-tower"
+keywords = ["c2pa", "provenance", "tower", "http", "link-header"]
+categories = ["web-programming", "network-programming", "encoding"]
+readme = "README.md"
+
+[features]
+default = ["tower"]
+# The Tower `Layer`/`Service` that attaches the header to responses. The parser
+# and serialiser in `link` need none of this and stay dependency-free, so a
+# caller on hyper, axum, or a hand-rolled server can use the core alone with
+# `default-features = false`.
+tower = ["dep:http", "dep:tower-layer", "dep:tower-service", "dep:pin-project-lite"]
+# Python bindings for the `link` parser, built with maturin/PyO3 for PyPI. The
+# Tower layer is not bound — a `Layer` has no meaning outside a Rust service
+# stack — but the RFC 8288 parser is exactly what a Python web framework needs
+# to emit or read the header.
+python = ["dep:pyo3"]
+
+[dependencies]
+http = { version = "1", optional = true }
+tower-layer = { version = "0.3", optional = true }
+tower-service = { version = "0.3", optional = true }
+# Safe pin projection for the response future, so the crate can forbid unsafe.
+# Macro-only and itself dependency-free; the same choice tower-http makes.
+pin-project-lite = { version = "0.2", optional = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+pyo3 = { version = "0.25", optional = true, features = ["extension-module", "abi3-py39"] }
+
+# The npm distribution is a `wasm32` build of the `link` parser.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+tokio = { version = "1", features = ["macros", "rt"] }
+
+[package.metadata.docs.rs]
+all-features = true
