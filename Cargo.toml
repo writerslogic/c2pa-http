@@ -11,6 +11,11 @@ keywords = ["c2pa", "provenance", "tower", "http", "link-header"]
 categories = ["web-programming", "network-programming", "encoding"]
 readme = "README.md"
 
+# `cdylib` is what wasm-pack and maturin need to produce a loadable module;
+# `rlib` keeps the crate usable as an ordinary Rust dependency.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [features]
 default = ["tower"]
 # The Tower `Layer`/`Service` that attaches the header to responses. The parser
