@@ -1,12 +1,12 @@
 [package]
-name = "c2pa-tower"
+name = "c2pa-http"
 version = "0.1.0"
 edition = "2021"
 # `usize::is_multiple_of`, used by the link parser.
 rust-version = "1.87"
 description = "C2PA manifest discovery over HTTP: the `c2pa-manifest` Link header (RFC 8288), with a Tower middleware"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/writerslogic/c2pa-tower"
+repository = "https://github.com/writerslogic/c2pa-http"
 keywords = ["c2pa", "provenance", "tower", "http", "link-header"]
 categories = ["web-programming", "network-programming", "encoding"]
 readme = "README.md"

@@ -8,8 +8,8 @@ name: Release
 #   CARGO_REGISTRY_TOKEN  — crates.io API token
 #
 # PyPI publishing uses Trusted Publishing (OIDC), not a secret. Register the
-# publisher on PyPI for project `c2pa-tower`, owner `writerslogic`, repository
-# `c2pa-tower`, workflow `release.yml`, environment `pypi`.
+# publisher on PyPI for project `c2pa-http`, owner `writerslogic`, repository
+# `c2pa-http`, workflow `release.yml`, environment `pypi`.
 
 on:
   push:
@@ -102,8 +102,8 @@ jobs:
             exit 0
           fi
           ver="$(grep '^version = ' Cargo.toml | head -1 | cut -d'"' -f2)"
-          if npm view "c2pa-tower@${ver}" version >/dev/null 2>&1; then
-            echo "npm already has c2pa-tower@${ver}; skipping"
+          if npm view "c2pa-http@${ver}" version >/dev/null 2>&1; then
+            echo "npm already has c2pa-http@${ver}; skipping"
             exit 0
           fi
           # Only the `link` parser is exposed to JS; the Tower layer has no

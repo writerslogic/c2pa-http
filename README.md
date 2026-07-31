@@ -1,12 +1,12 @@
 <p align="center">
-  <a href="https://crates.io/crates/c2pa-tower"><img src="https://img.shields.io/crates/v/c2pa-tower.svg" alt="crates.io"></a>
-  <a href="https://docs.rs/c2pa-tower"><img src="https://docs.rs/c2pa-tower/badge.svg" alt="docs.rs"></a>
-  <a href="https://pypi.org/project/c2pa-tower/"><img src="https://img.shields.io/pypi/v/c2pa-tower.svg" alt="PyPI"></a>
-  <a href="https://www.npmjs.com/package/c2pa-tower"><img src="https://img.shields.io/npm/v/c2pa-tower.svg" alt="npm"></a>
+  <a href="https://crates.io/crates/c2pa-http"><img src="https://img.shields.io/crates/v/c2pa-http.svg" alt="crates.io"></a>
+  <a href="https://docs.rs/c2pa-http"><img src="https://docs.rs/c2pa-http/badge.svg" alt="docs.rs"></a>
+  <a href="https://pypi.org/project/c2pa-http/"><img src="https://img.shields.io/pypi/v/c2pa-http.svg" alt="PyPI"></a>
+  <a href="https://www.npmjs.com/package/c2pa-http"><img src="https://img.shields.io/npm/v/c2pa-http.svg" alt="npm"></a>
   <a href="#license"><img src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg" alt="license"></a>
 </p>
 
-# c2pa-tower
+# c2pa-http
 
 C2PA manifest discovery over HTTP: the `c2pa-manifest` `Link` header, per
 [RFC 8288](https://www.rfc-editor.org/rfc/rfc8288), with a
@@ -18,7 +18,7 @@ target is where the C2PA Manifest Store can be retrieved.
 
 ```toml
 [dependencies]
-c2pa-tower = "0.1"
+c2pa-http = "0.1"
 ```
 
 ## What it does
@@ -36,12 +36,12 @@ the same type.
 ## Serve it
 
 ```rust
-use c2pa_tower::ManifestLinkLayer;
+use c2pa_http::ManifestLinkLayer;
 use tower::ServiceBuilder;
 
 let layer = ManifestLinkLayer::new("https://fabrikam.example/m.c2pa")?;
 let service = ServiceBuilder::new().layer(layer);
-# Ok::<(), c2pa_tower::Error>(())
+# Ok::<(), c2pa_http::Error>(())
 ```
 
 The header is **appended, never set**. A response may already carry `Link`
@@ -51,12 +51,12 @@ unrelated behaviour.
 ## Read it
 
 ```rust
-use c2pa_tower::link;
+use c2pa_http::link;
 
 let header = r#"</style.css>; rel=preload, <https://a.example/m.c2pa>; rel="c2pa-manifest""#;
 let found = link::extract([header])?;
 assert_eq!(found.uri, "https://a.example/m.c2pa");
-# Ok::<(), c2pa_tower::Error>(())
+# Ok::<(), c2pa_http::Error>(())
 ```
 
 ## Embedded manifests, and the childlabel rule
@@ -66,13 +66,13 @@ URI fragment. Referencing a specific manifest inside the store is not permitted,
 and a validator must ignore the `childlabel` portion — so it is discarded:
 
 ```rust
-use c2pa_tower::link;
+use c2pa_http::link;
 
 let header = r#"<https://a.example/i.jpg#jumbf=c2pa/urn:uuid:1234>; rel="c2pa-manifest""#;
 let found = link::extract([header])?;
 assert!(found.is_embedded());
 assert_eq!(found.uri, "https://a.example/i.jpg#jumbf=c2pa");
-# Ok::<(), c2pa_tower::Error>(())
+# Ok::<(), c2pa_http::Error>(())
 ```
 
 ## Parsing that holds up
@@ -100,13 +100,13 @@ yet. `link::format` percent-encodes it, which is both the spec-correct repair
 and what makes injection impossible:
 
 ```rust
-use c2pa_tower::link;
+use c2pa_http::link;
 
 // A CR/LF payload lands inside the URI instead of starting a new header.
 let header = link::format("https://a.example/\r\nX-Injected: yes")?;
 assert!(header.contains("%0D%0A"));
 assert!(!header.contains('\n'));
-# Ok::<(), c2pa_tower::Error>(())
+# Ok::<(), c2pa_http::Error>(())
 ```
 
 `>` becomes `%3E` and can no longer close the target early; non-ASCII travels as
@@ -136,13 +136,13 @@ a Rust service stack, but emitting and reading the header is exactly what a web
 framework needs.
 
 ```python
-import c2pa_tower
-response["Link"] = c2pa_tower.format("https://a.example/m.c2pa")
-found = c2pa_tower.extract([incoming.headers.get("link")])
+import c2pa_http
+response["Link"] = c2pa_http.format("https://a.example/m.c2pa")
+found = c2pa_http.extract([incoming.headers.get("link")])
 ```
 
 ```js
-import { format, extract } from "c2pa-tower";
+import { format, extract } from "c2pa-http";
 res.setHeader("Link", format("https://a.example/m.c2pa"));
 ```
 

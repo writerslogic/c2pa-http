@@ -3,7 +3,7 @@
 // at your option.
 
 //! WebAssembly bindings, built with `wasm-pack` and published to npm as
-//! `c2pa-tower`.
+//! `c2pa-http`.
 //!
 //! Only the [`link`](crate::link) parser is exposed; the Tower layer has no
 //! meaning off a Rust service stack. In JavaScript this is the piece that
@@ -11,7 +11,7 @@
 //! caller all deal in raw header strings:
 //!
 //! ```js
-//! import { format, extract } from "c2pa-tower";
+//! import { format, extract } from "c2pa-http";
 //!
 //! res.setHeader("Link", format("https://a.example/m.c2pa"));
 //!

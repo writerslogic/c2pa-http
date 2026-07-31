@@ -27,7 +27,7 @@
 //!
 //! ```
 //! # #[cfg(feature = "tower")] {
-//! use c2pa_tower::ManifestLinkLayer;
+//! use c2pa_http::ManifestLinkLayer;
 //! use tower::ServiceBuilder;
 //!
 //! let layer = ManifestLinkLayer::new("https://fabrikam.example/m.c2pa").unwrap();
@@ -38,7 +38,7 @@
 //! Read one from a response you received:
 //!
 //! ```
-//! use c2pa_tower::link;
+//! use c2pa_http::link;
 //!
 //! let header = r#"</style.css>; rel=preload, <https://a.example/m.c2pa>; rel="c2pa-manifest""#;
 //! let found = link::extract([header]).unwrap();
@@ -50,7 +50,7 @@
 //! store is not permitted, and the `childlabel` portion is discarded:
 //!
 //! ```
-//! use c2pa_tower::link;
+//! use c2pa_http::link;
 //!
 //! let header = r#"<https://a.example/i.jpg#jumbf=c2pa/urn:uuid:1234>; rel="c2pa-manifest""#;
 //! let found = link::extract([header]).unwrap();

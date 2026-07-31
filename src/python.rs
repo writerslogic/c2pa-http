@@ -1,5 +1,5 @@
 //! Python bindings, built with [maturin]/[PyO3] behind the `python` feature and
-//! published to PyPI as `c2pa-tower`.
+//! published to PyPI as `c2pa-http`.
 //!
 //! The Tower [`Layer`](crate::layer::ManifestLinkLayer) is *not* bound: a
 //! `Layer` composes into a Rust service stack and has no meaning outside one.
@@ -8,13 +8,13 @@
 //! `Link` header and expect you to emit your own.
 //!
 //! ```python
-//! import c2pa_tower
+//! import c2pa_http
 //!
 //! # Serving: attach the header.
-//! response["Link"] = c2pa_tower.format("https://a.example/m.c2pa")
+//! response["Link"] = c2pa_http.format("https://a.example/m.c2pa")
 //!
 //! # Consuming: read it back, tolerating unrelated Link values.
-//! found = c2pa_tower.extract(response.headers.get_list("Link"))
+//! found = c2pa_http.extract(response.headers.get_list("Link"))
 //! ```
 //!
 //! [maturin]: https://www.maturin.rs/
@@ -102,7 +102,7 @@ fn locate_all<'py>(py: Python<'py>, values: Vec<String>) -> PyResult<Vec<Bound<'
 }
 
 #[pymodule]
-fn c2pa_tower(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn c2pa_http(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(format, m)?)?;
     m.add_function(wrap_pyfunction!(format_strict, m)?)?;
     m.add_function(wrap_pyfunction!(encode_target, m)?)?;
