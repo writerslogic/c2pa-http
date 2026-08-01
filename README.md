@@ -1,25 +1,40 @@
 <p align="center">
   <a href="https://crates.io/crates/c2pa-http"><img src="https://img.shields.io/crates/v/c2pa-http.svg" alt="crates.io"></a>
   <a href="https://docs.rs/c2pa-http"><img src="https://docs.rs/c2pa-http/badge.svg" alt="docs.rs"></a>
-  <a href="https://pypi.org/project/c2pa-http/"><img src="https://img.shields.io/pypi/v/c2pa-http.svg" alt="PyPI"></a>
-  <a href="https://www.npmjs.com/package/c2pa-http"><img src="https://img.shields.io/npm/v/c2pa-http.svg" alt="npm"></a>
-  <a href="#license"><img src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg" alt="license"></a>
+  <a href="https://github.com/writerslogic/c2pa-http/actions/workflows/ci.yml"><img src="https://github.com/writerslogic/c2pa-http/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/writerslogic/c2pa-http"><img src="https://api.securityscorecards.dev/projects/github.com/writerslogic/c2pa-http/badge" alt="OpenSSF Scorecard"></a>
+  <a href="#license"><img src="https://img.shields.io/crates/l/c2pa-http.svg" alt="License"></a>
 </p>
 
-# c2pa-http
+## Overview
 
-C2PA manifest discovery over HTTP: the `c2pa-manifest` `Link` header, per
-[RFC 8288](https://www.rfc-editor.org/rfc/rfc8288), with a
-[Tower](https://crates.io/crates/tower) middleware.
+Implements C2PA manifest discovery over HTTP: the `c2pa-manifest` `Link` header, per [RFC 8288](https://www.rfc-editor.org/rfc/rfc8288), with a [Tower](https://crates.io/crates/tower) middleware.
 
-When an asset is served over HTTP and carries no embedded Manifest Store, a
-validator should look for a `Link` header carrying `rel="c2pa-manifest"`. Its
-target is where the C2PA Manifest Store can be retrieved.
+When an asset is served over HTTP and carries no embedded Manifest Store, a validator should look for a `Link` header carrying `rel="c2pa-manifest"`. Its target is where the C2PA Manifest Store can be retrieved.
+
+```http
+Link: <https://fabrikam.example/m.c2pa>; rel="c2pa-manifest"
+```
 
 ```toml
 [dependencies]
 c2pa-http = "0.1"
 ```
+
+This is the one discovery method that is not a file format, so it composes with
+all the others: a document embedding its manifest via
+[`c2pa-html`](https://crates.io/crates/c2pa-html) can *also* advertise one over
+HTTP, and the specification gives the header precedence.
+
+This crate owns two things:
+
+1. **The header** — parse and serialise it, with no dependencies, under any HTTP stack.
+2. **The middleware** — a Tower `Layer` that attaches it to every response.
+
+Retrieving the manifest is left to the caller: the crate performs no network
+I/O, so it makes no decisions about timeouts, redirects, or trust.
+
+> Not certified or conformance-tested by the C2PA. It implements the discovery method as specified.
 
 ## What it does
 
@@ -156,17 +171,30 @@ res.setHeader("Link", format("https://a.example/m.c2pa"));
 `default-features = false` leaves a dependency-free RFC 8288 parser usable under
 any HTTP stack — hyper, axum, a Cloudflare Worker, or a hand-rolled server.
 
-## Related
+## Related Crates
 
-| crate | method |
+Part of a family of single-purpose crates, one per C2PA embedding method. Each
+is standalone and independently versioned.
+
+| Crate | Description |
 |---|---|
-| [`c2pa-html`](https://crates.io/crates/c2pa-html) | HTML: `script` and `link` elements in the document head |
-| [`c2pa-structured-text`](https://crates.io/crates/c2pa-structured-text) | structured text: ASCII-armoured manifest in a comment |
-| [`c2pa-unstructured-text`](https://crates.io/crates/c2pa-unstructured-text) | unstructured text: Unicode variation selectors |
+| [c2pa-structured-text](https://crates.io/crates/c2pa-structured-text) | Structured text: ASCII-armoured manifest in a comment or front matter |
+| [c2pa-unstructured-text](https://crates.io/crates/c2pa-unstructured-text) | Unstructured text: invisible Unicode variation-selector run |
+| [c2pa-html](https://crates.io/crates/c2pa-html) | HTML: `script` and `link` elements in the document head |
+| [c2pa-text-binding](https://crates.io/crates/c2pa-text-binding) | Soft binding and content fingerprinting for text assets |
+| [c2pa-vtt](https://crates.io/crates/c2pa-vtt) | WebVTT caption and subtitle embedding |
+| [c2pa-zip](https://crates.io/crates/c2pa-zip) | ZIP-based documents: EPUB, DOCX, ODT, OXPS |
+| [c2pa-warc](https://crates.io/crates/c2pa-warc) | WARC web archive embedding (ISO 28500) |
+| [c2pa-fonts](https://crates.io/crates/c2pa-fonts) | OpenType/TrueType (SFNT) font embedding |
+| [c2pa-ml](https://crates.io/crates/c2pa-ml) | ML model containers: GGUF, SafeTensors, ONNX |
+| [c2pa](https://crates.io/crates/c2pa) | Official C2PA SDK |
 
-For an HTML document carrying both an in-document manifest element and a `Link`
-header, the specification gives the header precedence.
+## Security
+
+Found a vulnerability? Please report it privately — see [SECURITY.md](./SECURITY.md).
 
 ## License
 
-MIT OR Apache-2.0.
+Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or [MIT License](LICENSE-MIT) at your option.
+
+Built by [WritersLogic](https://writerslogic.com)
