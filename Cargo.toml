@@ -2,7 +2,7 @@
 name = "c2pa-http"
 version = "0.1.0"
 edition = "2021"
-# `usize::is_multiple_of`, used by the link parser.
+# One MSRV across the crate family; verified with `cargo +1.87 check`.
 rust-version = "1.87"
 description = "C2PA manifest discovery over HTTP: the `c2pa-manifest` Link header (RFC 8288), with a Tower middleware"
 license = "MIT OR Apache-2.0"
