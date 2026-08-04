@@ -68,8 +68,10 @@
 //! [`c2pa-html`]: https://crates.io/crates/c2pa-html
 
 #![forbid(unsafe_code)]
+#![warn(missing_docs)]
 #![warn(missing_debug_implementations)]
 
+/// Errors from locating a manifest link, and the C2PA status codes they map to.
 pub mod error;
 pub mod link;
 
