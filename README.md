@@ -1,3 +1,7 @@
+# c2pa-http
+
+_C2PA manifest discovery over HTTP: the `c2pa-manifest` Link header (RFC 8288), with a Tower middleware._
+
 <p align="center">
   <a href="https://crates.io/crates/c2pa-http"><img src="https://img.shields.io/crates/v/c2pa-http.svg" alt="crates.io"></a>
   <a href="https://docs.rs/c2pa-http"><img src="https://docs.rs/c2pa-http/badge.svg" alt="docs.rs"></a>
@@ -21,6 +25,13 @@ Link: <https://fabrikam.example/m.c2pa>; rel="c2pa-manifest"
 c2pa-http = "0.1"
 ```
 
+The same crate is published for JavaScript/WebAssembly and Python, built from this source:
+
+```bash
+npm install c2pa-http   # wasm-bindgen build
+pip install c2pa-http   # PyO3 abi3 wheel, CPython 3.9+
+```
+
 This is the one discovery method that is not a file format, so it composes with
 all the others: a document embedding its manifest via
 [`c2pa-html`](https://crates.io/crates/c2pa-html) can *also* advertise one over
@@ -34,6 +45,7 @@ This crate owns two things:
 Retrieving the manifest is left to the caller: the crate performs no network
 I/O, so it makes no decisions about timeouts, redirects, or trust.
 
+> [!NOTE]
 > Not certified or conformance-tested by the C2PA. It implements the discovery method as specified.
 
 ## What it does
