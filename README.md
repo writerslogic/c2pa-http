@@ -36,6 +36,8 @@ This is the one discovery method that is not a file format, so it composes with
 all the others: a document embedding its manifest via
 [`c2pa-html`](https://crates.io/crates/c2pa-html) can *also* advertise one over
 HTTP, and the specification gives the header precedence.
+HTTP. When both forms are present, the embedded Manifest Store is authoritative
+and the remote `Link` is ignored.
 
 This crate owns two things:
 

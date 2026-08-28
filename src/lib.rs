@@ -61,8 +61,9 @@
 //! # Precedence
 //!
 //! For an HTML document that carries both an in-document manifest element and a
-//! `Link` header, the specification gives the header precedence. Discovery
-//! inside the document itself is [`c2pa-html`]'s job.
+//! `Link` header, the embedded Manifest Store takes precedence and the remote
+//! link is ignored. Discovery inside the document itself is [`c2pa-html`]'s
+//! job.
 //!
 //! [Tower]: https://crates.io/crates/tower
 //! [`c2pa-html`]: https://crates.io/crates/c2pa-html
