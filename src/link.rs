@@ -260,8 +260,13 @@ fn split_jumbf(target: &str) -> (String, Option<String>) {
         return (target.to_string(), None);
     };
     let (base, fragment) = (&target[..hash], &target[hash + 1..]);
-    if fragment.len() < JUMBF_PREFIX.len()
-        || !fragment[..JUMBF_PREFIX.len()].eq_ignore_ascii_case(JUMBF_PREFIX)
+    // Compare as bytes, not by slicing the &str at a byte-length boundary: a
+    // fragment whose first JUMBF_PREFIX.len() *bytes* end mid-codepoint (an
+    // ASCII prefix match immediately followed by a multi-byte UTF-8
+    // character) would otherwise panic on the string slice.
+    let fragment_bytes = fragment.as_bytes();
+    if fragment_bytes.len() < JUMBF_PREFIX.len()
+        || !fragment_bytes[..JUMBF_PREFIX.len()].eq_ignore_ascii_case(JUMBF_PREFIX.as_bytes())
     {
         return (target.to_string(), None);
     }
@@ -286,6 +291,15 @@ mod tests {
 
     fn one(header: &str) -> ManifestLink {
         extract([header]).expect("expected exactly one c2pa-manifest link")
+    }
+
+    /// A fragment whose first bytes happen to match the ASCII JUMBF prefix
+    /// length but are immediately followed by a multi-byte UTF-8 character
+    /// must not panic on a mid-codepoint string slice.
+    #[test]
+    fn non_ascii_fragment_does_not_panic() {
+        let l = one(r#"<https://a.example/x#jumbfé>; rel="c2pa-manifest""#);
+        assert_eq!(l.jumbf, None);
     }
 
     #[test]
