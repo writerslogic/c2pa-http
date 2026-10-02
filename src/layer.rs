@@ -151,7 +151,15 @@ where
             Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
             Poll::Ready(Ok(r)) => r,
         };
-        response.headers_mut().append(LINK, this.header.clone());
+        // If the inner service already advertised its own c2pa-manifest link
+        // (for a different target than this layer's fixed one), appending
+        // unconditionally would produce two competing links and make
+        // extract_from immediately self-defeating with Error::MultipleLinks.
+        // A response that doesn't already carry one is the common case and
+        // the only one this check adds a cost to.
+        if extract_from(response.headers()).is_err() {
+            response.headers_mut().append(LINK, this.header.clone());
+        }
         Poll::Ready(Ok(response))
     }
 }
@@ -176,6 +184,17 @@ mod tests {
         Ok(r)
     }
 
+    async fn with_existing_manifest_link(
+        _: http::Request<()>,
+    ) -> Result<Response<()>, std::convert::Infallible> {
+        let mut r = Response::new(());
+        r.headers_mut().append(
+            LINK,
+            HeaderValue::from_static(r#"<https://other.example/m.c2pa>; rel="c2pa-manifest""#),
+        );
+        Ok(r)
+    }
+
     #[tokio::test]
     async fn the_layer_advertises_the_manifest() {
         let svc = ServiceBuilder::new()
@@ -194,6 +213,22 @@ mod tests {
         let response = svc.oneshot(http::Request::new(())).await.unwrap();
         assert_eq!(response.headers().get_all(LINK).iter().count(), 2);
         assert_eq!(extract_from(response.headers()).unwrap().uri, URI);
+    }
+
+    #[tokio::test]
+    async fn the_layer_does_not_duplicate_an_existing_manifest_link() {
+        // If the inner service already advertised its own c2pa-manifest link,
+        // appending this layer's fixed one unconditionally would leave two
+        // competing targets, making extract_from self-defeating.
+        let svc = ServiceBuilder::new()
+            .layer(ManifestLinkLayer::new(URI).unwrap())
+            .service_fn(with_existing_manifest_link);
+        let response = svc.oneshot(http::Request::new(())).await.unwrap();
+        assert_eq!(response.headers().get_all(LINK).iter().count(), 1);
+        assert_eq!(
+            extract_from(response.headers()).unwrap().uri,
+            "https://other.example/m.c2pa"
+        );
     }
 
     #[test]
