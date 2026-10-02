@@ -125,12 +125,12 @@
   "static_analysis_fixed_justification": "CI fails the build on any clippy warning (`-D warnings`, .github/workflows/ci.yml:39-40), so medium+ static-analysis findings cannot be merged unaddressed.",
   "static_analysis_often_status": "Met",
   "static_analysis_often_justification": "Clippy runs on every push to main and every pull request (.github/workflows/ci.yml `on: push/pull_request`).",
-  "dynamic_analysis_status": "Unmet",
-  "dynamic_analysis_justification": "No dynamic analysis tool (e.g. cargo-fuzz, AFL, sanitizers) is configured in any workflow under .github/workflows/ or referenced in Cargo.toml.",
+  "dynamic_analysis_status": "Met",
+  "dynamic_analysis_justification": "A cargo-fuzz target (fuzz/fuzz_targets/parse_untrusted.rs) drives the crate's untrusted-input parsers with libFuzzer; fuzz/README.md documents how to run it.",
   "dynamic_analysis_unsafe_status": "N/A",
   "dynamic_analysis_unsafe_justification": "The crate forbids unsafe code entirely (`#![forbid(unsafe_code)]`, src/lib.rs:70), so there is no memory-unsafe code requiring a memory-safety dynamic analysis tool.",
-  "dynamic_analysis_enable_assertions_status": "Unmet",
-  "dynamic_analysis_enable_assertions_justification": "No dynamic analysis is run at all (see dynamic_analysis), so no assertion-enabling configuration exists.",
+  "dynamic_analysis_enable_assertions_status": "Met",
+  "dynamic_analysis_enable_assertions_justification": "The fuzz target builds with cargo-fuzz's default dev profile, which enables debug assertions and overflow checks, so Rust's integer-overflow and bounds checks act as assertions during fuzzing.",
   "dynamic_analysis_fixed_status": "N/A",
   "dynamic_analysis_fixed_justification": "No dynamic analysis tool is in use, so there are no dynamic-analysis findings to fix."
 }
