@@ -29,6 +29,11 @@ use crate::error::Error;
 
 /// The IANA-registered link relation naming a C2PA Manifest Store.
 pub const REL: &str = "c2pa-manifest";
+/// The IANA media type for a C2PA Manifest Store. Included in [`format`]'s and
+/// [`format_strict`]'s output for ecosystem consistency with the HTML `link`
+/// element's convention; not required for discovery (`extract`/`locate_all`
+/// match on `rel` alone, per the spec).
+const TYPE: &str = "application/c2pa";
 
 /// The JUMBF URI fragment prefix that names an embedded Manifest Store.
 const JUMBF_PREFIX: &str = "jumbf=";
@@ -116,7 +121,10 @@ pub fn format(uri: &str) -> Result<String, Error> {
     if uri.is_empty() {
         return Err(Error::Malformed("target URI is empty"));
     }
-    Ok(std::format!("<{}>; rel=\"{REL}\"", encode_target(uri)))
+    Ok(std::format!(
+        "<{}>; rel=\"{REL}\"; type=\"{TYPE}\"",
+        encode_target(uri)
+    ))
 }
 
 /// As [`format`], but fails rather than repairing a target that is not already
@@ -134,7 +142,7 @@ pub fn format_strict(uri: &str) -> Result<String, Error> {
             "target URI contains characters that a URI must percent-encode",
         ));
     }
-    Ok(std::format!("<{uri}>; rel=\"{REL}\""))
+    Ok(std::format!("<{uri}>; rel=\"{REL}\"; type=\"{TYPE}\""))
 }
 
 /// Whether a byte cannot appear literally in a URI reference.
@@ -191,7 +199,13 @@ fn split_unquoted(s: &str, sep: u8) -> Vec<&str> {
     while i < b.len() {
         match b[i] {
             b'\\' if in_quote => i += 1, // the next byte is escaped
-            b'"' => in_quote = !in_quote,
+            // A `"` inside `<...>` is just a URI-reference byte, not a quote:
+            // the angle-bracket target has no quoting syntax of its own. Toggling
+            // in_quote here regardless of in_angle let one malformed target with
+            // a stray `"` get stuck "inside a quote" for the rest of the header,
+            // suppressing the separator split and swallowing every later link --
+            // including a well-formed one -- into the same element.
+            b'"' if !in_angle => in_quote = !in_quote,
             b'<' if !in_quote => in_angle = true,
             b'>' if !in_quote => in_angle = false,
             c if c == sep && !in_quote && !in_angle => {
@@ -454,7 +468,10 @@ mod tests {
     #[test]
     fn format_round_trips_through_the_parser() {
         let header = format("https://a.example/m.c2pa").unwrap();
-        assert_eq!(header, r#"<https://a.example/m.c2pa>; rel="c2pa-manifest""#);
+        assert_eq!(
+            header,
+            r#"<https://a.example/m.c2pa>; rel="c2pa-manifest"; type="application/c2pa""#
+        );
         assert_eq!(one(&header).uri, "https://a.example/m.c2pa");
     }
 
@@ -567,6 +584,17 @@ mod tests {
         ] {
             let _ = locate_all([h]);
         }
+    }
+
+    #[test]
+    fn a_stray_quote_inside_angle_brackets_does_not_hide_a_later_link() {
+        // A `"` has no quoting meaning inside <...>; it's just a URI-reference
+        // byte. Toggling in_quote on it anyway got the scanner stuck "inside a
+        // quote" for the rest of the header, suppressing the comma split and
+        // swallowing a well-formed link that follows a malformed one.
+        let h =
+            r#"<http://a.example/x"y>; rel=other, <https://a.example/m.c2pa>; rel="c2pa-manifest""#;
+        assert_eq!(one(h).uri, "https://a.example/m.c2pa");
     }
 
     #[test]

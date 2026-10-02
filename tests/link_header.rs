@@ -12,7 +12,7 @@ fn format_and_extract_round_trip() {
     let header = link::format(URI).unwrap();
     assert_eq!(
         header,
-        r#"<https://fabrikam.example/m.c2pa>; rel="c2pa-manifest""#
+        r#"<https://fabrikam.example/m.c2pa>; rel="c2pa-manifest"; type="application/c2pa""#
     );
 
     let found = link::extract([header.as_str()]).unwrap();
